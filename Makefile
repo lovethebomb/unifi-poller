@@ -68,10 +68,16 @@ $(BINARY).linux:
 	# Building linux binary.
 	GOOS=linux go build -o $(BINARY).linux -ldflags "-w -s -X github.com/davidnewhall/unifi-poller/unifipoller.Version=$(VERSION)"
 
+armv7: $(BINARY).armv7
+$(BINARY).armv7:
+	# Building armv7 binary.
+	GOOS=linux GOARCH=arm GOARM=7 go build -o $(BINARY).armv7 -ldflags "-w -s -X github.com/davidnewhall/unifi-poller/unifipoller.Version=$(VERSION)"
+
 macos: $(BINARY).macos
 $(BINARY).macos:
 	# Building darwin binary.
 	GOOS=darwin go build -o $(BINARY).macos -ldflags "-w -s -X github.com/davidnewhall/unifi-poller/unifipoller.Version=$(VERSION)"
+
 
 exe: $(BINARY).exe
 windows: $(BINARY).exe
@@ -112,6 +118,23 @@ $(BINARY)_$(VERSION)-$(ITERATION)_amd64.deb: check_fpm package_build_linux
 		--description "$(DESC)" \
 		--chdir package_build_linux
 
+deb_armv7: clean $(BINARY)_$(VERSION)-$(ITERATION)_armv7.deb
+$(BINARY)_$(VERSION)-$(ITERATION)_armv7.deb: check_fpm package_build_armv7
+	@echo "Building 'deb' package for $(BINARY) version '$(VERSION)-$(ITERATION)'."
+	fpm -s dir -t deb \
+		--architecture armhf \
+		--name $(BINARY) \
+		--version $(VERSION) \
+		--iteration $(ITERATION) \
+		--after-install scripts/after-install.sh \
+		--before-remove scripts/before-remove.sh \
+		--license MIT \
+		--url $(URL) \
+		--maintainer "$(MAINT)" \
+		--description "$(DESC)" \
+		--chdir package_build_armv7
+
+
 docker:
 	docker build -f init/docker/Dockerfile -t $(DOCKER_REPO)/$(BINARY) .
 
@@ -122,6 +145,19 @@ package_build_linux: readme man linux
 	mkdir -p $@/usr/share/man/man1 $@/usr/share/doc/$(BINARY)
 	# Copying the binary, config file, unit file, and man page into the env.
 	cp $(BINARY).linux $@/usr/bin/$(BINARY)
+	cp *.1.gz $@/usr/share/man/man1
+	cp examples/up.conf.example $@/etc/$(BINARY)/
+	cp examples/up.conf.example $@/etc/$(BINARY)/up.conf
+	cp LICENSE *.html examples/* $@/usr/share/doc/$(BINARY)/
+	# These go to their own folder so the img src in the html pages continue to work.
+	cp init/systemd/$(BINARY).service $@/lib/systemd/system/
+
+package_build_armv7: readme man armv7 
+	# Building package environment for linux.
+	mkdir -p $@/usr/bin $@/etc/$(BINARY) $@/lib/systemd/system
+	mkdir -p $@/usr/share/man/man1 $@/usr/share/doc/$(BINARY)
+	# Copying the binary, config file, unit file, and man page into the env.
+	cp $(BINARY).armv7 $@/usr/bin/$(BINARY)
 	cp *.1.gz $@/usr/share/man/man1
 	cp examples/up.conf.example $@/etc/$(BINARY)/
 	cp examples/up.conf.example $@/etc/$(BINARY)/up.conf
